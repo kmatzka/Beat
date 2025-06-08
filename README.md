@@ -9,10 +9,15 @@ An elegant screenwriting app for macOS and iOS, using the plain-text Fountain sc
 **Plugin API documentation**  
 Read more on public plugin repository: https://github.com/lmparppei/BeatPlugins/  
 
+**Additional Documentation**  
+- [About Beat](Developer%20Documentation/About%20Beat.md) - Detailed information about the project
+- [Beat File Format Specification](Developer%20Documentation/Beat%20File%20Format%20Specification.md) - Technical specification
+- [Changelog](CHANGELOG.md) - Version history and updates
+
 
 ## About Beat
 
-This started as a personal project as I needed a simple, multi-window, lightweight screenwriting application for my own films. All other existing screenwriting apps were weird, expensive, cumbersome or even lacked some pretty important features - such as automatic and visible scene numbering while writing. At this point Beat pretty much outdoes most of the commercial Fountain editors, with certain limitations. To make up for those, Beat some **very** useful features, such as powerful outlining tools, scene coloring and filtering. 
+This started as a personal project as I needed a simple, multi-window, lightweight screenwriting application for my own films. All other existing screenwriting apps were weird, expensive, cumbersome or even lacked some pretty important features - such as automatic and visible scene numbering while writing. At this point Beat pretty much outdoes most of the commercial Fountain editors, with certain limitations. To make up for those, Beat has some **very** useful features, such as powerful outlining tools, scene coloring and filtering. 
 
 Beat was originally a fork of [**Writer**](https://github.com/HendrikNoeller/Writer/) by Hendrik Noeller and some code still originates from his work, especially within the magnificent continuous Fountain parser. 
 
@@ -37,16 +42,16 @@ Beat was originally a fork of [**Writer**](https://github.com/HendrikNoeller/Wri
 
 ## iOS version
 
-Beat for iOS supports a limited set of features, but is getting up to speed with the desktop release. Some thing will, like plugin support, will remain macOS-exclusive, and the iOS version should be considered a companion app for the bigger sibling now.
+Beat for iOS supports a limited set of features, but is getting up to speed with the desktop release. Some things, like plugin support, will remain macOS-exclusive, and the iOS version should be considered a companion app for the bigger sibling now.
 
 The mobile version is currently a paid app, available on App Store, but it is still licensed under GPL and this repo contains the code for both platforms. You can build it yourself to avoid paying me anything.
 
 
 ## Building from repo
 
-**Note:** This repository follows my development, so it DOES NOT match the latest release version on either platform. I still can't use branches. Dread lightly, dear friend!
+**Note:** This repository follows my development, so it DOES NOT match the latest release version on either platform. I still can't use branches. Tread lightly, dear friend!
 
-Open the `Beat` workspace and set your credentials. When building for macOS development, I suggest using the *Beat App Store* target. You will need multiple Beat frameworks built, but both iOS and macOS release versions have only one external package dependency.
+Open the `Beat.xcworkspace` file and set your credentials. When building for macOS development, I suggest using the *Beat App Store* target. You will need multiple Beat frameworks built, but both iOS and macOS release versions have only one external package dependency.
 
 
 ## FAQ
@@ -57,11 +62,11 @@ Beat is under active development, and worst bugs will usually be fixed ASAP. If 
 
 ### Plugins
 
-You can download the latest public plugins (and learn more about creating your own) in the Beat Plugin repo: https://github.com/lmparppei/BeatPlugins
+You can download the latest public plugins (and learn more about creating your own) in the [Beat Plugin repository](https://github.com/lmparppei/BeatPlugins).
 
 ### Will There Be a Windows Version? 
 
-Unfortunately no. Beat is written in Objective C and Swift and relies on native macOS APIs. There are no good Fountain editors on Windows, and somebody should really write one! You might be able to use the Beat parser as starting point.
+Unfortunately no. Beat is written in Objective-C and Swift and relies on native macOS APIs. There are no good Fountain editors on Windows, and somebody should really write one! You might be able to use the Beat parser as a starting point.
 
 ### Can I help?
 
