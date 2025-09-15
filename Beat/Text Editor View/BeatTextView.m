@@ -37,9 +37,11 @@
 
 #import "BeatTextView.h"
 #import "BeatTextView+Popovers.h"
+#import "BeatTextView+MouseEvents.h"
 #import "BeatTextView+FocusMode.h"
+#import "BeatTextView+TypewriterMode.h"
+#import "BeatTextView+SelectionEvents.h"
 
-//#import "ScrollView.h"
 #import "BeatPasteboardItem.h"
 #import "Beat-Swift.h"
 #import "BeatClipView.h"
@@ -69,15 +71,8 @@ static NSTouchBarItemIdentifier ColorPickerItemIdentifier = @"com.TouchBarCatalo
 /// Touch bar view
 @property (nonatomic, weak) IBOutlet NSTouchBar *touchBar;
 
-@property (nonatomic, strong) NSPopover *taggingPopover;
-
 /// Text container tracking area
 @property (nonatomic) NSTrackingArea *trackingArea;
-
-/// This is set `true` while the user scrolls using scroll wheel or fingers
-@property (nonatomic) bool scrolling;
-/// A shorthand to return `true` when selection is at end. Use this to avoid going out of range when setting typing attributes.
-@property (nonatomic) bool selectionAtEnd;
 
 @property (nonatomic) bool updatingSceneNumberLabels; /// YES if scene number labels are being updated
 
@@ -320,7 +315,8 @@ NSString *keyCodeToString(uint16_t keyCode) {
 	return [NSString stringWithCharacters:chars length:realLength];
 }
 
--(void)keyUp:(NSEvent *)event {
+-(void)keyUp:(NSEvent *)event
+{
 	if (self.typewriterMode) [self typewriterScroll];
 }
 
@@ -407,153 +403,15 @@ NSString *keyCodeToString(uint16_t keyCode) {
 }
 
 
-#pragma mark - Typewriter scroll
-
-- (bool)typewriterMode
+-(NSRect)adjustScroll:(NSRect)newVisible
 {
-	return [BeatUserDefaults.sharedDefaults getBool:BeatSettingTypewriterMode];
-}
-- (void)setTypewriterMode:(bool)typewriterMode
-{
-	[BeatUserDefaults.sharedDefaults saveBool:typewriterMode forKey:BeatSettingTypewriterMode];
-}
-
-// Typewriter mode
-- (IBAction)toggleTypewriterMode:(id)sender {
-	self.typewriterMode = !self.typewriterMode;
-	
-	for (id<BeatEditorDelegate>doc in NSDocumentController.sharedDocumentController.documents) {
-		[doc updateLayout];
-	}
-}
-
-- (void)updateTypewriterView
-{
-	// Do nothing if the selection is longer than 0
-	if (self.selectedRange.length > 0) return;
-	
-	NSRange range = [self.layoutManager glyphRangeForCharacterRange:self.selectedRange actualCharacterRange:nil];
-	NSRect rect = [self.layoutManager boundingRectForGlyphRange:range inTextContainer:self.textContainer];
-	
-	CGFloat viewOrigin = self.enclosingScrollView.documentVisibleRect.origin.y;
-	CGFloat viewHeight = self.enclosingScrollView.documentVisibleRect.size.height;
-	CGFloat y = rect.origin.y + self.textContainerInset.height;
-	if (y < viewOrigin || y > viewOrigin + viewHeight) [self typewriterScroll];
-}
-
-- (void)typewriterScroll
-{
-	if (self.needsLayout) [self layout];
-	[self.layoutManager ensureLayoutForCharacterRange:self.editorDelegate.currentLine.range];
-	
-	BeatClipView* clipView = (BeatClipView*)self.enclosingScrollView.contentView;
-	
-	// Find the rect for current range
-	NSRect rect = [self rectForRange:self.selectedRange];
-	
-	// Calculate correct scroll position
-	CGFloat scrollY = (rect.origin.y - self.editorDelegate.fontSize * 3) * self.editorDelegate.magnification;
-	
-	// Take find & replace bar height into account
-	// CGFloat findBarHeight = (self.enclosingScrollView.findBarVisible) ? self.enclosingScrollView.findBarView.frame.size.height : 0;
-	
-	// Calculate container height with insets
-	CGFloat containerHeight = [self.layoutManager usedRectForTextContainer:self.textContainer].size.height;
-	containerHeight = containerHeight * self.editorDelegate.magnification + self.textInsetY * 2 * self.editorDelegate.magnification;
-	
-	NSRect bounds = NSMakeRect(clipView.bounds.origin.x, scrollY, clipView.bounds.size.width, clipView.bounds.size.height);
-	
-	[self.superview.animator setBoundsOrigin:bounds.origin];
-}
-
--(void)scrollWheel:(NSEvent *)event {
-	// If the user scrolls, let's ignore any other scroll behavior
-	_selectionAtEnd = NO;
-	
-	if (event.phase == NSEventPhaseBegan || event.phase == NSEventPhaseChanged) _scrolling = YES;
-	else if (event.phase == NSEventPhaseEnded) _scrolling = NO;
-	
-	[super scrollWheel:event];
-}
-
--(NSRect)adjustScroll:(NSRect)newVisible {
-	if (self.typewriterMode && !_scrolling && _selectionAtEnd) {
+	if (self.typewriterMode && !_scrolling && self.selectionAtEnd) {
 		if (self.selectedRange.location == self.string.length) {
 			return self.enclosingScrollView.documentVisibleRect;
 		}
 	}
 	
 	return [super adjustScroll:newVisible];
-}
-
-
-
-#pragma mark - Selection events
-
-/**
- 
- There are TWO different didChangeSelection listeners, here and in Document.
- This one deals with text editor events, such as tagging, typewriter scroll,
- closing autocomplete and displaying reviews.
- 
- The one in Document handles other UI-related stuff, such as updating views
- that are hooked into the parsed screenplay contents, and also updates plugins.
- 
- */
-- (void)didChangeSelection:(NSNotification *)notification
-{
-	// Skip event when needed
-	if (_editorDelegate.skipSelectionChangeEvent) {
-		_editorDelegate.skipSelectionChangeEvent = NO;
-		return;
-	}
-		
-	// If selection moves by more than just one character, hide autocomplete
-	if ((self.selectedRange.location - self.lastPos) > 1) {
-		if (self.popoverController.isShown) [self setAutomaticTextCompletionEnabled:NO];
-		[self closePopovers];
-	}
-	
-	// Show tagging/review options for selected range
-	
-	switch (_editorDelegate.mode) {
-		case TaggingMode:
-			// Show tag list
-			[self showTagSelector];
-			break;
-		case ReviewMode:
-			// Show review editor
-			[_editorDelegate.review showReviewIfNeededWithRange:self.selectedRange forEditing:YES];
-			break;
-		default:
-			[self selectionEvents];
-			break;
-	}
-}
-
-- (bool)selectionAtEnd {
-	if (self.selectedRange.location == self.string.length) return YES;
-	else return NO;
-}
-
-- (void)selectionEvents {
-	// TODO: I could/should make this one a registered event, too.
-	
-	// Don't go out of range. We can't check for attributes at the last index.
-	NSUInteger pos = self.selectedRange.location;
-	if (NSMaxRange(self.selectedRange) >= self.string.length) pos = self.string.length - 1;
-	if (pos < 0) pos = 0;
-	
-	// Review items
-	if (self.string.length > 0) {
-		BeatReviewItem *reviewItem = [self.textStorage attribute:BeatReview.attributeKey atIndex:pos effectiveRange:nil];
-		if (reviewItem && !reviewItem.emptyReview) {
-			[_editorDelegate.review showReviewIfNeededWithRange:NSMakeRange(pos, 0) forEditing:NO];
-			[self.window makeFirstResponder:self];
-		} else {
-			[_editorDelegate.review closePopover];
-		}
-	}
 }
 
 
@@ -614,77 +472,6 @@ Line *cachedRectLine;
 }
 
 
-
-#pragma mark - Mouse events
-
-- (void)mouseDown:(NSEvent *)event
-{
-	[self closePopovers];
-	[super mouseDown:event];
-}
-
-- (void)mouseUp:(NSEvent *)event
-{
-	[super mouseUp:event];
-}
-
-
-
-- (void)otherMouseUp:(NSEvent *)event
-{
-	// We'll use buttons 3/4 to navigate between scenes
-	switch (event.buttonNumber) {
-		case 3:
-			[self.editorDelegate nextScene:self];
-			return;
-		case 4:
-			[self.editorDelegate previousScene:self];
-			return;
-		default:
-			break;
-	}
-	
-	[super otherMouseUp:event];
-}
-
-- (void)mouseMoved:(NSEvent *)event
-{
-	// point in this scaled text view
-	NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-	
-	// point in unscaled parent view
-	NSPoint superviewPoint = [self.enclosingScrollView convertPoint:event.locationInWindow fromView:nil];
-	
-	// y position in window
-	CGFloat y = event.locationInWindow.y;
-	
-	// Super cursor when inside the text container, otherwise arrow
-	if (self.window.isKeyWindow) {
-		CGFloat leftX = self.textContainerInset.width + BeatTextView.linePadding;
-		CGFloat rightX = (self.textContainer.size.width + self.textContainerInset.width - BeatTextView.linePadding) * (1/_zoomLevel);
-		
-		if ((point.x > leftX && point.x * (1/_zoomLevel) < rightX) &&
-			y < self.window.frame.size.height - 22 &&
-			superviewPoint.y < self.enclosingScrollView.frame.size.height) {
-			//[super mouseMoved:event];
-			[NSCursor.IBeamCursor set];
-		} else if (point.x > 10) {
-			[NSCursor.arrowCursor set];
-		}
-	}
-}
-
--(void)resetCursorRects
-{
-	[super resetCursorRects];
-}
-
--(void)cursorUpdate:(NSEvent *)event
-{
-	[NSCursor.IBeamCursor set];
-}
-
-
 #pragma mark - Scaling
 
 - (void)scaleUnitSquareToSize:(NSSize)newUnitSize
@@ -692,7 +479,8 @@ Line *cachedRectLine;
 	[super scaleUnitSquareToSize:newUnitSize];
 }
 
-- (CGFloat)documentWidth {
+- (CGFloat)documentWidth
+{
 	CGFloat width = [_editorDelegate.editorStyles.page defaultWidthWithPageSize:_editorDelegate.pageSize];
 	CGFloat padding = self.textContainer.lineFragmentPadding;
 	
@@ -739,7 +527,18 @@ Line *cachedRectLine;
 }
 
 
-#pragma mark - Scrolling interface
+#pragma mark - Scrolling
+
+- (void)scrollPoint:(NSPoint)point
+{
+	[super scrollPoint:point];
+}
+
+- (void)scrollRangeToVisible:(NSRange)range
+{
+	if (self.editorDelegate.formatting.formatting) return;
+	[super scrollRangeToVisible:range];
+}
 
 /// Non-animated scrolling
 - (void)scrollToRange:(NSRange)range
@@ -1079,6 +878,7 @@ double clamp(double d, double min, double max)
 	];
 }
 
+
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem
 {
 	for (BeatValidationItem *item in self.validatedMenuItems) {
@@ -1176,48 +976,6 @@ double clamp(double d, double min, double max)
 }
 
 
-#pragma mark - Spell Checking
-
-- (void)toggleContinuousSpellChecking:(id)sender
-{
-	[super toggleContinuousSpellChecking:sender];
-	[BeatUserDefaults.sharedDefaults saveBool:(self.continuousSpellCheckingEnabled) forKey:BeatSettingContinuousSpellChecking];
-}
-
-- (void)handleTextCheckingResults:(NSArray<NSTextCheckingResult *> *)results forRange:(NSRange)range types:(NSTextCheckingTypes)checkingTypes options:(NSDictionary<NSTextCheckingOptionKey,id> *)options orthography:(NSOrthography *)orthography wordCount:(NSInteger)wordCount
-{
-	// Do nothing when autocompletion list is visible
-	if (self.popoverController.isShown) return;
-	
-	Line *line = [self.editorDelegate.parser lineAtIndex:range.location];
-	NSArray* newResults = results;
-	
-	// Avoid capitalizing parentheticals
-	if (line.isAnyParenthetical) {
-		NSMutableArray<NSTextCheckingResult*> *fixedResults;
-		NSString *textToChange = [self.textStorage.string substringWithRange:range];
-		
-		for (NSTextCheckingResult *result in results) {
-			NSTextCheckingType type = result.resultType;
-			if (type != NSTextCheckingTypeOrthography) {
-				// Make sure the replacement string is not just trying to capitalize our parenthetical.
-				NSString* toReplace = [textToChange substringWithRange:result.range].uppercaseString;
-				NSString* replacement = result.replacementString.uppercaseString;
-				if (![toReplace isEqualToString:replacement] && result.resultType == NSTextCheckingTypeCorrection) {
-					[fixedResults addObject:result];
-				}
-			} else {
-				[fixedResults addObject:result];
-			}
-		}
-		
-		newResults = fixedResults;
-	}
-		
-	[super handleTextCheckingResults:newResults forRange:range types:checkingTypes options:options orthography:orthography wordCount:wordCount];
-}
-
-
 
 #pragma mark - Make compatible with iOS stuff
 
@@ -1255,7 +1013,10 @@ double clamp(double d, double min, double max)
 	CGSize containerSize = [self.layoutManager usedRectForTextContainer:self.textContainer].size;
 	if (containerSize.height == 0.0) return @[];
 	
-	for (Line* line in self.editorDelegate.parser.lines) { @autoreleasepool {
+	
+	NSArray* lines = self.editorDelegate.parser.lines;
+	
+	for (Line* line in lines) {
 		if (line.marker.length == 0 && line.color.length == 0) continue;
 		
 		NSRange glyphRange = [self.layoutManager glyphRangeForCharacterRange:line.textRange actualCharacterRange:nil];
@@ -1268,7 +1029,7 @@ double clamp(double d, double min, double max)
 		
 		if (line.isOutlineElement) [markers addObject:@{ @"color": line.color, @"y": @(relativeY), @"scene": @(true) }];
 		else [markers addObject:@{ @"color": line.marker, @"y": @(relativeY) }];
-	} }
+	}
 	
 	return markers;
 }

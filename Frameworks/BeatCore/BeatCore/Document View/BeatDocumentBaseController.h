@@ -41,6 +41,11 @@ typedef NS_ENUM(NSInteger, BeatFontType);
 @property (nonatomic) BeatDocumentSettings * _Nonnull documentSettings;
 - (NSArray<OutlineScene*>* _Nonnull)outline;
 - (NSString* _Nullable)displayName;
+
+NS_ASSUME_NONNULL_BEGIN
+JSExportAs(addAttribute, - (void)addAttribute:(NSString* _Nonnull)key value:(id _Nonnull)value range:(NSRange)range);
+JSExportAs(removeAttribute, - (void)removeAttribute:(NSString* _Nonnull)key range:(NSRange)range);
+NS_ASSUME_NONNULL_END
 @end
 
 @protocol BeatPluginInstance
@@ -268,6 +273,9 @@ NS_ASSUME_NONNULL_END
 - (CGFloat)fontScale;
 
 
+- (void)updateThemeAndReformat:(NSArray* _Nullable)types;
+
+
 #pragma mark - Preview
 
 @property (nonatomic) id<BeatPreviewControllerInstance> _Nonnull previewController;
@@ -332,12 +340,18 @@ NS_ASSUME_NONNULL_END
 - (void)reloadStyles;
 - (void)resetStyles;
 - (CGFloat)editorLineHeight;
-- (CGFloat)lineHeight;
+- (void)forgetStyles;
 
 /// Only sets the stylesheet. Does NOT reload or reformat anything.
 - (void)setStylesheet:(NSString* _Nonnull)name;
 /// Set stylesheet and refresh everything.
 - (void)setStylesheetAndReformat:(NSString * _Nonnull)name;
+
+
+#pragma mark - Additional data storage
+
+@property (nonatomic) NSMapTable<NSString*, id>* _Nullable additionalData;
+
 
 @end
 

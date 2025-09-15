@@ -7,6 +7,7 @@
 //
 
 #import "Document+TextEvents.h"
+#import "Document+UI.h"
 
 @implementation Document (TextEvents)
 
@@ -62,7 +63,7 @@
 				if (chr == ')') {
 					NSInteger lineIndex = [self.parser indexOfLine:currentLine];
 					[self addString:@"\n" atIndex:affectedCharRange.location + 1];
-					if (lineIndex < self.lines.count) [self.formatting formatLine:self.lines[lineIndex]];
+					if (lineIndex < self.parser.lines.count) [self.formatting formatLine:self.parser.lines[lineIndex]];
 					
 					[self.textView setSelectedRange:(NSRange){ affectedCharRange.location + 2, 0 }];
 					change = false;

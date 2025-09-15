@@ -171,7 +171,7 @@
             }
         }
         
-        if (numberingBegan) {
+        if (numberingBegan && page.customPageNumber == nil) {
             page.pageNumber = pageNumber;
             pageNumber += 1;
         }
@@ -194,7 +194,6 @@
     //NSInteger pageNumber = 0;
     
     for (BeatPaginationPage* page in self.pages) {
-        
         BeatPageBreak* pageBreak = page.pageBreak;
         NSInteger position = pageBreak.element.position + pageBreak.index;
         
@@ -208,12 +207,24 @@
         // Store the local position of character
         NSUInteger localIndex = position - pageBreak.element.position;
         NSValue* key = [NSValue valueWithNonretainedObject:pageBreak.element];
-        pageBreaks[key] = @[@(page.pageNumber), @(localIndex)];
+                
+        pageBreaks[key] = @[page.pageNumberForPrinting, @(localIndex)];
     }
     
     return pageBreaks;
 }
 
+/// Returns actual page breaks. Do NOT retain this array, because it might lead to retain cycles.
+- (NSArray<BeatPageBreak*>*)pageBreaks
+{
+    NSMutableArray<BeatPageBreak*>* pageBreaks = NSMutableArray.new;
+    
+    for (BeatPaginationPage* page in self.pages) {
+        if (page.pageBreak != nil) [pageBreaks addObject:page.pageBreak];
+    }
+    
+    return pageBreaks;
+}
 
 #pragma mark - Convenience stuff
 
@@ -392,7 +403,10 @@
 		}
 	}
 	
-	if (_currentPage.blocks.count > 0) [_pages addObject:_currentPage];
+    if (_currentPage.blocks.count > 0) {
+        [self addPage:@[] toQueue:@[] pageBreak:nil];
+        //[_pages addObject:_currentPage];
+    }
 	
 	return true;
 }
@@ -493,6 +507,17 @@ The layout blocks (`BeatPageBlock`) won't contain anything else than the rendere
 {
 	Line* line = self.lineQueue[idx];
     
+    // Some lines might produce new items, which means we'll replace that line with the new components
+    if (line.resolvedMacros.count > 0) {
+        NSArray* components = [self getProducedLinesFor:line];
+        
+        if (components.count > 0) {
+            [self.lineQueue removeObjectAtIndex:idx];
+            [self.lineQueue insertObjects:components atIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(idx, components.count)]];
+            line = self.lineQueue[idx];
+        }
+    }
+    
 	NSMutableArray<Line*>* block = [NSMutableArray arrayWithObject:line];
 	
 	if (line.isAnyCharacter) {
@@ -535,10 +560,11 @@ The layout blocks (`BeatPageBlock`) won't contain anything else than the rendere
 		i += 1;
 		
 		// Skip empty lines, and break when the next line type is not the one we expected
-		if (l.type == empty || l.string.length == 0) { continue; }
-		if (l.type == expectedType) {
-			if (l.beginsNewParagraph) {
-                // centered and lyric elements might begin a new block
+        if (l.type == empty || l.string.length == 0) {
+            continue;
+        } else if (l.type == expectedType) {
+            // centered and lyric elements might begin a new block
+            if (l.beginsNewParagraph) {
                 break;
             }
             
@@ -583,6 +609,7 @@ The layout blocks (`BeatPageBlock`) won't contain anything else than the rendere
         BeatPaginationBlock *block = [BeatPaginationBlock withLines:elements delegate:self];
         [_currentPage addBlock:block];
     }
+    
 	[self.pages addObject:_currentPage];
 	
 	// Add objects to queue
@@ -590,8 +617,10 @@ The layout blocks (`BeatPageBlock`) won't contain anything else than the rendere
 	NSIndexSet* indices = [NSIndexSet indexSetWithIndexesInRange:range];
 	[_lineQueue insertObjects:toQueue atIndexes:indices];
 	
-	_currentPage = [BeatPaginationPage.alloc initWithDelegate:self];
-	_currentPage.pageBreak = pageBreak;
+    if (pageBreak != nil) {
+        _currentPage = [BeatPaginationPage.alloc initWithDelegate:self];
+        _currentPage.pageBreak = pageBreak;
+    }
 }
 
 
@@ -896,8 +925,50 @@ NSMutableDictionary<NSValue*,NSNumber*>* safeRanges;
 }
 
 - (NSArray<NSDictionary<NSString*, NSArray<Line*>*>*>*)titlePage {
-    
     return self.titlePageContent;
 }
+
+- (BeatParagraphPaginationMode)paragraphPaginationMode
+{
+    if (!self.styles.overrideParagraphPaginationMode) {
+        return (BeatParagraphPaginationMode)[BeatUserDefaults.sharedDefaults getInteger:BeatSettingParagraphPaginationMode];
+    } else {
+        return BeatParagraphPaginationModeDefault;
+    }
+}
+
+- (NSArray<Line*>*)getProducedLinesFor:(Line*)line
+{
+    // We need to check if this line actually produces multiple lines
+    NSAttributedString* attrStr = [line attributedStringForOutputWith:self.settings];
+    NSInteger lineBreakIndex = [attrStr.string rangeOfString:@"\n"].location;
+    
+    NSMutableArray<Line*>* components = NSMutableArray.new;
+    while (lineBreakIndex != NSNotFound) {
+        NSInteger lineBreakIndex = [attrStr.string rangeOfString:@"\n"].location;
+        bool stop = false;
+        Line* newLine;
+        if (lineBreakIndex == NSNotFound) {
+            newLine = [Line.alloc initWithString:[Line attributedStringToFountain:attrStr] type:line.type];
+            stop = true;
+        } else {
+            NSAttributedString* head = [attrStr attributedSubstringFromRange:NSMakeRange(0, lineBreakIndex)];
+            newLine = [Line.alloc initWithString:[Line attributedStringToFountain:head] type:line.type];
+            // Move on to next part of the attributed string
+            attrStr = [attrStr attributedSubstringFromRange:NSMakeRange(lineBreakIndex+1, attrStr.length - lineBreakIndex - 1)];
+        }
+        
+        if (newLine != nil) {
+            [newLine resetFormatting];
+            newLine.beginsNewParagraph = true;
+            [components addObject:newLine];
+        }
+        
+        if (stop) break;
+    }
+    
+    return components;
+}
+
 
 @end

@@ -37,7 +37,14 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NS_ENUM(NSInteger, BeatPageNumberingMode) {
     BeatPageNumberingModeDefault = 0,
     BeatPageNumberingModeFirstScene,
-    BeatPageNumberingModeFirstPageBreak
+    BeatPageNumberingModeFirstPageBreak,
+    BeatPageNumberingModeForcedOnly
+};
+
+typedef NS_ENUM(NSInteger, BeatParagraphPaginationMode) {
+    BeatParagraphPaginationModeDefault = 0,
+    BeatParagraphPaginationModeAvoid,
+    BeatParagraphPaginationModeUnderFourLines
 };
 
 
@@ -65,6 +72,8 @@ typedef NS_ENUM(NSInteger, BeatPageNumberingMode) {
 - (NSInteger)pageNumberForScene:(OutlineScene*)scene;
 - (NSInteger)pageNumberAt:(NSInteger)location;
 
+- (NSArray<BeatPageBreak*>*)pageBreaks;
+
 @end
 
 @protocol BeatPageDelegate
@@ -79,6 +88,7 @@ typedef NS_ENUM(NSInteger, BeatPageNumberingMode) {
 @property (nonatomic, readonly) CGFloat maxPageHeight;
 
 - (NSParagraphStyle*)paragraphStyleFor:(Line*)line;
+- (BeatParagraphPaginationMode)paragraphPaginationMode;
 
 - (Line*)moreLineFor:(Line*)line;
 - (Line*)contdLineFor:(Line*)line;
@@ -98,6 +108,9 @@ typedef NS_ENUM(NSInteger, BeatPageNumberingMode) {
 @property (nonatomic) bool running;
 /// When the operation was invoked
 @property (nonatomic) NSDate* startTime;
+
+/// Returns the preferred way to paginate paragraphs. Can be overridden by styles, and this getter will respect that.
+@property (nonatomic) BeatParagraphPaginationMode paragraphPaginationMode;
 
 /// Export settings
 @property (nonatomic) BeatExportSettings* settings;

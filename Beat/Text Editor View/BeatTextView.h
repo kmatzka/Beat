@@ -27,11 +27,18 @@ typedef NS_ENUM(NSInteger, BeatTextviewPopoverMode) {
 @class BeatStylesheet;
 @class BeatEditorFormatting;
 
+
+#pragma mark - Autocompletion table view delegate
+// Why is this here?
+
 @protocol NCRAutocompleteTableViewDelegate <NSObject>
 @optional
 - (NSImage *)textView:(NSTextView *)textView imageForCompletion:(NSString *)word;
 - (NSArray *)textView:(NSTextView *)textView completions:(NSArray *)words forPartialWordRange:(NSRange)charRange indexOfSelectedItem:(NSInteger *)index;
 @end
+
+
+#pragma mark - Expanded text view delegate
 
 @protocol BeatTextViewDelegate <NSTextViewDelegate, BeatEditorDelegate>
 
@@ -61,6 +68,9 @@ typedef NS_ENUM(NSInteger, BeatTextviewPopoverMode) {
 - (void)cancelOperation:(id)sender;
 @end
 
+
+#pragma mark - Text view
+
 @class BeatTagging;
 @class BeatPaginationPage;
 @class BeatEditorPopoverController;
@@ -75,8 +85,13 @@ typedef NS_ENUM(NSInteger, BeatTextviewPopoverMode) {
 
 @property (nonatomic) bool didType;
 
+/// This is set `true` while the user is scrolling the view
+@property (nonatomic) bool scrolling;
 
-#pragma mark - Layout and positioning
+/// A shorthand to return `true` when selection is at end. Use this to avoid going out of range when setting typing attributes.
+@property (nonatomic) bool selectionAtEnd;
+
+#pragma mark Layout and positioning
 
 + (CGFloat)linePadding;
 - (CGFloat)documentWidth;
@@ -99,7 +114,7 @@ typedef NS_ENUM(NSInteger, BeatTextviewPopoverMode) {
 - (CGFloat)setInsets;
 
 
-#pragma mark - Pagination
+#pragma mark Pagination
 
 @property NSArray* pageBreaks;
 
@@ -107,7 +122,7 @@ typedef NS_ENUM(NSInteger, BeatTextviewPopoverMode) {
 @property (nonatomic) bool typewriterMode;
 
 
-#pragma mark - Autocompletion
+#pragma mark Autocompletion
 
 /// Autocompletion results
 @property (nonatomic, strong) NSArray *matches;

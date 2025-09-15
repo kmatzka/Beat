@@ -25,6 +25,7 @@ import BeatParsing
 	
 	func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 		let cell = tableView.dequeueReusableCell(withIdentifier: "Scene") as! BeatOutlineViewCell
+		let dark = UIView.shouldAppearAsDark(view: cell, apply: true)
 		
 		if let scene = delegate.parser.outline[indexPath.row] as? OutlineScene {
 			let string = OutlineViewItem.withScene(scene,
@@ -33,7 +34,7 @@ import BeatParsing
 												   synopsis: BeatUserDefaults().getBool(BeatSettingShowSynopsisInOutline),
 												   notes: BeatUserDefaults().getBool(BeatSettingShowNotesInOutline),
 												   markers: BeatUserDefaults().getBool(BeatSettingShowMarkersInOutline),
-												   isDark: true)
+												   isDark: dark)
 			
 			cell.representedScene = scene
 			cell.textLabel?.attributedText = string

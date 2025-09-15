@@ -34,7 +34,8 @@
 	});
 }
 
-/// Note: This method is NOT implemented by primary class, just appears so because it's inherited from `BeatEditorDelegate` definition. Objc selectors will sort this out.
+/// Forces all views to redraw. Does NOT load colors from the theme, despite the weird method name.
+/// - note: This method is NOT implemented by primary class, just appears so because it's inherited from `BeatEditorDelegate` definition. Objc selectors will sort this out.
 - (void)updateUIColors
 {
 	if (self.documentWindow.frame.size.height == 0 || self.documentWindow.frame.size.width == 0) return;
@@ -84,39 +85,13 @@
 	
 	[self.textScrollView layoutButtons];
 	[self.documentWindow setViewsNeedDisplay:true];
+	
+	[self.textView setNeedsLayout:YES];
 	[(BeatTextView*)self.textView redrawUI];
-
+	[self.textView setNeedsDisplayInRect:self.textView.frame avoidAdditionalLayout:YES];
+	
 	// Update background layers
 	[self.marginView updateBackground];
-}
-
-- (void)updateThemeAndReformat:(NSArray*)types
-{
-	bool formatText = false;
-	
-	// First update all basic elements
-	[self updateTheme];
-	
-	// Now, let's reformat the needed types
-	for (Line* line in self.lines)
-	{
-		if (formatText) {
-			[self.formatting refreshRevisionTextColorsInRange:line.range];
-		}
-		
-		bool reformat = false;
-		
-		if ([types containsObject:@"text"] ||
-			[types containsObject:line.typeName] ||
-			([types containsObject:@"omit"] && line.omittedRanges.count > 0) ||
-			([types containsObject:@"note"] && line.noteRanges.count) ||
-			([types containsObject:@"macro"] && line.macroRanges.count)
-			) {
-			reformat = true;
-		}
-		
-		if (reformat) [self.formatting setTextColorFor:line];
-	}
 }
 
 - (void)updateTheme
@@ -132,11 +107,7 @@
 		NSBackgroundColorAttributeName: tm.selectionColor,
 		NSForegroundColorAttributeName: tm.backgroundColor
 	}];
-	
-	[self.documentWindow setViewsNeedDisplay:YES];
-	[self.textView setNeedsLayout:YES];
-	[self.textView setNeedsDisplayInRect:self.textView.frame avoidAdditionalLayout:YES];
-			
+				
 	[self updateUIColors];
 }
 

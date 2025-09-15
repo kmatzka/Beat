@@ -127,6 +127,9 @@ typedef NS_ENUM(NSUInteger, LineType) {
 
 @property (nonatomic) bool collapsed;
 
+/// Returns line string content with no formatting to be displayed in UI elements.
+- (NSString*)stringForDisplay;
+
 - (NSString*)stripFormatting;
 - (bool)effectivelyEmpty;
 
@@ -189,6 +192,8 @@ JSExportAs(setCustomData, - (NSDictionary*)setCustomData:(NSString*)key value:(i
 @property (nonatomic) NSUInteger sectionDepth;
 /// If the line is an outline element, this value contains the scene number, but only after the outline structure has been updated
 @property (nonatomic) NSString* sceneNumber;
+/// This flag is set during outline creation / scene number update. __Do not touch otherwise.__
+@property (nonatomic) BOOL autoNumbered;
 /// Color for outline element (`nil` or empty if no color is set)
 @property (nonatomic) NSString* color;
 /// This line was forced to be a character cue in editor
@@ -417,6 +422,10 @@ JSExportAs(setCustomData, - (NSDictionary*)setCustomData:(NSString*)key value:(i
 
 /// returns `true` if the *visible* content is uppercase, which means that any notes etc. won't be taken into consideration.
 - (bool)visibleContentIsUppercase;
+
+/// Page number convenience getter. Note that this can also be SET.
+@property (nonatomic) NSString* forcedPageNumber;
+@property (nonatomic) NSString* inheritedForcedPageNumber;
 
 
 #pragma mark - Debugging

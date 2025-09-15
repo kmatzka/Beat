@@ -128,6 +128,11 @@
                     lineStr = [self renderLine:line ofBlock:block dualDialogueElement:block.dualDialogueElement firstElementOnPage:false];
                 }
                 
+                // Do a sweep for emojis
+                if (lineStr.string.emo_containsEmoji) {
+                    lineStr = [self emojiFontsFor:lineStr];
+                }
+                
                 [attrStr appendAttributedString:lineStr];
             } }
             
@@ -178,7 +183,7 @@
     }
     
     NSMutableAttributedString* attributedString = [NSMutableAttributedString.alloc initWithAttributedString:lineAttrStr];
-    [attributedString appendAttributedString:[NSAttributedString.alloc initWithString:@"\n"]];
+    [attributedString appendString:@"\n"];
     [attributedString addAttributes:attrs range:NSMakeRange(0, attributedString.length)];
     
     // Underlining
@@ -249,6 +254,8 @@
     // For headings, add some extra formatting (wrap them in a table and insert scene numbers)
     if (line.type == heading && style.sceneNumber && !self.settings.simpleSceneHeadings) {
         attributedString = [self renderHeading:line content:attributedString firstElementOnPage:firstElementOnPage];
+        // This is an experimental feature to support PDF outlines
+        [attributedString addAttribute:@"HEADING" value:[NSString stringWithFormat:@"%@ %@", line.sceneNumber, line.stringForDisplay.uppercaseString] range:NSMakeRange(0, attributedString.length)];
     }
     
     return attributedString;
@@ -412,7 +419,7 @@
     BeatTableAttachment* attachment = [BeatTableAttachment.alloc initWithCells:@[left, center, right] spacing:0.0 margin:0.0];
     
     NSMutableAttributedString* tableString = [NSAttributedString attributedStringWithAttachment:attachment].mutableCopy;
-    [tableString appendAttributedString:[NSAttributedString.alloc initWithString:@"\n"]];
+    [tableString appendString:@"\n"];
     
     // Restore margin
     [tableString addAttribute:NSParagraphStyleAttributeName value:contentStyle range:NSMakeRange(0, tableString.length)];
@@ -533,9 +540,14 @@
 - (NSAttributedString*)pageNumberBlockForPage:(BeatPaginationPage*)page
 {
     NSInteger pageNumber = page.pageNumber;
+    NSString* pageNumberString;
     
     // We might skip first page number (in screenplay mode)
-    NSString* pageNumberString = (pageNumber >= self.styles.page.firstPageWithNumber) ? [NSString stringWithFormat:@"%lu.\n", pageNumber] : @" \n";
+    if (pageNumber < self.styles.page.firstPageWithNumber && page.customPageNumber == nil) {
+        pageNumberString = @"\n";
+    } else {
+        pageNumberString = (page.customPageNumber == nil) ? [NSString stringWithFormat:@"%lu.\n", pageNumber] : [NSString stringWithFormat:@"%@\n", page.customPageNumber];
+    }
     
     // We'll use A4 size for both page sizes
     CGFloat width = self.styles.page.defaultWidthA4 - 10.0;
@@ -686,7 +698,7 @@
     BeatTableAttachment* attachment = [BeatTableAttachment.alloc initWithCells:@[left, header, right] spacing:0.0 margin:0.0];
     
     NSMutableAttributedString* tableString = [NSAttributedString attributedStringWithAttachment:attachment].mutableCopy;
-    [tableString appendAttributedString:[NSAttributedString.alloc initWithString:@"\n"]];
+    [tableString appendString:@"\n"];
     
     // Restore margin
     NSMutableParagraphStyle* blockStyle = NSMutableParagraphStyle.new;
@@ -743,9 +755,6 @@
 - (NSDictionary*)attributesForLine:(Line*)line dualDialogue:(bool)isDualDialogue
 {
     if (line == nil) return @{};
-    if (line.type == dualDialogue) {
-        NSLog(@"Dual dialogue: %@ // should be: %@", line, isDualDialogue ? @"yes" : @"no");
-    }
     
     @synchronized (self.lineTypeAttributes) {
         BeatPaperSize paperSize = self.settings.paperSize;
@@ -930,6 +939,34 @@
     if (!isDualDialogue) blockWidth += self.styles.page.contentPadding;
         
     return blockWidth;
+}
+
+- (NSAttributedString*)emojiFontsFor:(NSAttributedString*)attrStr
+{
+    NSMutableAttributedString* result = [NSMutableAttributedString.alloc initWithAttributedString:attrStr];
+#if TARGET_OS_OSX
+    if (@available(macOS 10.15, *)) {
+#endif
+        NSArray* ranges = attrStr.string.emo_emojiRanges;
+        BXFont* emojiFont = BeatFontManager.shared.defaultFonts.emojiFont;
+        
+        for (NSValue* v in ranges) {
+            NSRange range = v.rangeValue;
+            if (NSMaxRange(range) > attrStr.length) continue;
+            
+            NSDictionary* attrs = [attrStr attributesAtIndex:range.location effectiveRange:0];
+            BXFont* font = attrs[NSFontAttributeName];
+            
+            BXFont* eFont = [emojiFont fontWithSize:font.pointSize];
+            
+            if (eFont != nil)
+                [result addAttribute:NSFontAttributeName value:eFont range:range];
+        }
+#if TARGET_OS_OSX
+    }
+#endif
+    
+    return result;
 }
 
 @end

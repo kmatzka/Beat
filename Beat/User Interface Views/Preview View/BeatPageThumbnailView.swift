@@ -101,6 +101,11 @@ class BeatPageThumbnailView:NSCollectionView {
 	}
 		
 	override func reloadData() {
+		if let superview = self.superview, superview.frame.width == 0 {
+			// Don't reload invisible views
+			return
+		}
+		
 		let layout = self.collectionViewLayout as? NSCollectionViewFlowLayout
 		
 		// Update page size
@@ -165,7 +170,9 @@ class BeatPageThumbnailProvider:NSObject, NSCollectionViewDataSource, NSCollecti
 	func collectionView(_ collectionView: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
 		let item = collectionView.makeItem(withIdentifier: BeatPageThumbnailItem.identifier, for: indexPath) as! BeatPageThumbnailItem
 		
-		if let view = pageDataSource?.pageView(forPage: indexPath.item) {
+		let temporary = pageDataSource?.rendering ?? false
+		
+		if let view = pageDataSource?.pageView(forPage: indexPath.item, placeholder: temporary) {
 			var pageNumber = indexPath.item + 1
 			if self.pageDataSource?.hasTitlePage() ?? false {
 				// Ignore page number at first page of a title page

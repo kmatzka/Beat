@@ -101,6 +101,10 @@ NSString* const BeatSettingAddTitlePageByDefault        = @"addTitlePageByDefaul
 
 NSString* const BeatSettingRelativeOutlineHeights       = @"relativeOutlineHeights";
 
+NSString* const BeatSettingParagraphPaginationMode      = @"paragraphPaginationMode";
+
+NSString* const BeatSettingHideThumbnailView            = @"hideThumbnailView";
+
 
 + (BeatUserDefaults*)sharedDefaults
 {
@@ -185,7 +189,11 @@ NSString* const BeatSettingRelativeOutlineHeights       = @"relativeOutlineHeigh
         
         BeatSettingAddTitlePageByDefault: @[BeatSettingAddTitlePageByDefault, @NO],
         
-        BeatSettingRelativeOutlineHeights: @[BeatSettingRelativeOutlineHeights, @NO]
+        BeatSettingRelativeOutlineHeights: @[BeatSettingRelativeOutlineHeights, @NO],
+        
+        BeatSettingParagraphPaginationMode: @[BeatSettingParagraphPaginationMode, @0],
+        
+        BeatSettingHideThumbnailView: @[BeatSettingHideThumbnailView, @NO]
 	};
 }
 
@@ -217,8 +225,7 @@ NSString* const BeatSettingRelativeOutlineHeights       = @"relativeOutlineHeigh
 				NSString *str = value;
 				
 				if ([str isEqualToString:@"YES"] || [str isEqualToString:@"NO"]) {
-					if ([str isEqualToString:@"YES"]) value = @YES;
-					else value = @NO;
+                    value = ([str isEqualToString:@"YES"]) ? @YES : @NO;
 				}
 				
 				// Use default when the string is empty
@@ -297,8 +304,10 @@ NSString* const BeatSettingRelativeOutlineHeights       = @"relativeOutlineHeigh
 	
 	NSDictionary* userDefaults = BeatUserDefaults.userDefaults;
 	NSArray *values = userDefaults[docKey];
-	
+    if (values == nil) return nil;
+    
 	NSString *settingKey = values[0];
+    
 	if (![NSUserDefaults.standardUserDefaults objectForKey:settingKey]) {
 		return values[1];
 	} else {

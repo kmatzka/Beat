@@ -17,6 +17,8 @@ import AppKit
 import BeatCore.BeatEditorDelegate
 import BeatPagination2
 
+fileprivate let sidebarWidth = 158.0
+
 @objc public class BeatPreviewController:BeatPreviewManager {
 
 	var renderer:BeatRenderer?
@@ -24,17 +26,34 @@ import BeatPagination2
 	
 	@IBOutlet weak var scrollView:CenteringScrollView?
 	@IBOutlet weak var thumbnailView:BeatPageThumbnailView?
-
+	@IBOutlet weak var thumbnailViewConstraint:NSLayoutConstraint?
+	
+	let thumbnailViewWidth = 160.0
+	
+	
 	// MARK: - Creating  preview data
 	
 	var changedIndices:NSMutableIndexSet = NSMutableIndexSet()
+	
+	public override func awakeFromNib() {
+		super.awakeFromNib()
+		if #available(macOS 12.0, *) {
+			if let hideThumbnailView = BeatUserDefaults.shared().get("hideThumbnailView") as? Bool {
+				setThumbnailViewHidden(hideThumbnailView)
+			}
+		}
+	}
 	
 	@objc override public func reload(with pagination: BeatPagination) {
 		// We should migrate to a data source model on macOS as well, but let's just cast the view this time
 		if let previewView = self.previewView as? BeatPreviewView {
 			previewView.updatePages(pagination, settings: self.settings, controller: self)
-			self.thumbnailView?.reloadData()
+			//self.thumbnailView?.reloadData()
 		}
+	}
+	
+	public override func didEndRendering() {
+		self.thumbnailView?.reloadData()
 	}
 	
 	@objc override public func scrollToRange(_ range:NSRange) {
@@ -79,5 +98,15 @@ import BeatPagination2
 			}
 		}
 	}
+	
+	func setThumbnailViewHidden(_ hidden:Bool) {
+		if hidden {
+			self.thumbnailViewConstraint?.constant = 0.0
+		} else {
+			self.thumbnailView?.reloadData()
+			self.thumbnailViewConstraint?.constant = sidebarWidth
+		}
+	}
+
 }
 

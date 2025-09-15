@@ -43,6 +43,7 @@
 #import <BeatParsing/ContinuousFountainParser+Preprocessing.h>
 #import <BeatParsing/ContinuousFountainParser+Outline.h>
 #import <BeatParsing/ContinuousFountainParser+Lookup.h>
+#import <BeatParsing/ContinuousFountainParser+Macros.h>
 #import <BeatParsing/NSArray+BinarySearch.h>
 #import "ContinuousFountainParser+Notes.h"
 #import <BeatParsing/NSString+CharacterControl.h>
@@ -68,10 +69,6 @@
 
 // Cached line set for UUID creation
 @property (nonatomic) NSArray* cachedLines;
-
-@property (nonatomic) BeatMacroParser* macros;
-
-@property (nonatomic) bool macrosNeedUpdate;
 
 @property (nonatomic) NSArray<ParsingRule*>* parsingRules;
 
@@ -319,11 +316,10 @@ static NSDictionary* patterns;
     _lastEditedLine = nil;
     _editedRange = range;
     
-    dispatch_queue_t lineQueue = dispatch_queue_create("com.editor.lineQueue", DISPATCH_QUEUE_SERIAL);
-    dispatch_sync(lineQueue, ^{
+    @synchronized (_lines) {
         NSMutableIndexSet *changedIndices = [self processLineChanges:range withString:string];
         [self correctParsesInLines:changedIndices];
-    });
+    }
 }
 
 - (NSMutableIndexSet*)processLineChanges:(NSRange)range withString:(NSString*)string {
@@ -350,6 +346,7 @@ static NSDictionary* patterns;
 /// I've replaced the old unichar-based code with this monstrosity to avoid weird quirks with multi-byte characters, and to preserve some metadata when inserting line breaks at the beginning of a line.
 - (NSIndexSet*)parseAddition:(NSString*)string atPosition:(NSUInteger)position
 {
+    /*
     NSMutableIndexSet* changedIndices = NSMutableIndexSet.new;
     
     // Get the line where we are adding characters
@@ -414,7 +411,61 @@ static NSDictionary* patterns;
     
     // Adjust positions of all subsequent lines
     [self adjustLinePositionsFrom:changedIndices.firstIndex];
-    [self report];
+    
+    return changedIndices;
+     */
+    
+    NSMutableIndexSet *changedIndices = NSMutableIndexSet.new;
+    
+    // Get the line where into which we are adding characters
+    NSUInteger lineIndex = [self lineIndexAtPosition:position];
+    Line* line = self.lines[lineIndex];
+    
+    [changedIndices addIndex:lineIndex];
+    
+    NSUInteger indexInLine = position - line.position;
+    
+    // Cut the string in half
+    NSString* tail = [line.string substringFromIndex:indexInLine];
+    line.string = [line.string substringToIndex:indexInLine];
+    
+    NSInteger currentRange = -1;
+    
+    for (NSInteger i=0; i<string.length; i++) {
+        if (currentRange < 0) currentRange = i;
+        
+        unichar chr = [string characterAtIndex:i];
+        
+        if (chr == '\n') {
+            NSString* addedString = [string substringWithRange:NSMakeRange(currentRange, i - currentRange)];
+            line.string = [line.string stringByAppendingString:addedString];
+            
+            if (lineIndex < self.lines.count - 1) {
+                Line* nextLine = self.lines[lineIndex+1];
+                NSInteger delta = ABS(NSMaxRange(line.range) - nextLine.position);
+                [self decrementLinePositionsFromIndex:lineIndex+1 amount:delta];
+            }
+            
+            [self addLineWithString:@"" atPosition:NSMaxRange(line.range) lineIndex:lineIndex+1];
+            
+            // Increment current line index and reset inspected range
+            lineIndex++;
+            currentRange = -1;
+            
+            // Set current line
+            line = self.lines[lineIndex];
+        }
+    }
+    
+    // Get the remaining string (if applicable)
+    NSString* remainder = (currentRange >= 0) ? [string substringFromIndex:currentRange] : @"";
+    line.string = [line.string stringByAppendingString:remainder];
+    line.string = [line.string stringByAppendingString:tail];
+    
+    [self adjustLinePositionsFrom:lineIndex];
+    
+    //[self report];
+    [changedIndices addIndexesInRange:NSMakeRange(changedIndices.firstIndex + 1, lineIndex - changedIndices.firstIndex)];
     
     return changedIndices;
 }
@@ -731,6 +782,8 @@ static NSDictionary* patterns;
 /// @note: When calling, start from the line that was changed.
 - (void)adjustLinePositionsFrom:(NSInteger)index
 {
+    if (index >= self.lines.count) return;
+    
     Line* line = self.lines[index];
     NSInteger delta = NSMaxRange(line.range);
     index++;
@@ -756,46 +809,6 @@ static NSDictionary* patterns;
     for (; index < self.lines.count; index++) {
         Line* line = self.lines[index];
         line.position -= amount;
-    }
-}
-
-#pragma mark - Macros
-
-- (void)updateMacros
-{
-    self.macrosNeedUpdate = false;
-    
-    BeatMacroParser* parser = BeatMacroParser.new;
-    NSArray* lines = self.safeLines;
-    
-    for (NSInteger i=0; i<lines.count; i++) {
-        Line* l = lines[i];
-        if (l.type == section && l.sectionDepth == 1) [parser resetPanel];
-        if (l.macroRanges.count == 0) continue;
-        
-        [self resolveMacrosOn:l parser:parser];
-        if (l.isOutlineElement || l.type == synopse) {
-            [self addUpdateToOutlineAtLine:l didChangeType:false];
-        }
-    }
-}
-
-/// TODO: Move this to line object maybe?
-- (void)resolveMacrosOn:(Line*)line parser:(BeatMacroParser*)macroParser
-{
-    NSDictionary* macros = line.macros;
-    line.resolvedMacros = NSMutableDictionary.new;
-    
-    NSArray<NSValue*>* keys = [macros.allKeys sortedArrayUsingComparator:^NSComparisonResult(NSValue*  _Nonnull obj1, NSValue*  _Nonnull obj2) {
-        if (obj1.rangeValue.location > obj2.rangeValue.location) return true;
-        return false;
-    }];
-    
-    for (NSValue* range in keys) {
-        NSString* macro = macros[range];
-        id value = [macroParser parseMacro:macro];
-        
-        if (value != nil) line.resolvedMacros[range] = [NSString stringWithFormat:@"%@", value];
     }
 }
 
@@ -1410,8 +1423,14 @@ static NSDictionary* patterns;
     // After we've gathered all the elements, lets iterate them once more to determine where blocks end.
     for (NSDictionary<NSString*,NSArray<Line*>*>* element in self.titlePage) {
         NSArray<Line*>* lines = element.allValues.firstObject;
-        lines.firstObject.beginsTitlePageBlock = true;
-        lines.lastObject.endsTitlePageBlock = true;
+        Line* firstLine = lines.firstObject;
+        Line* lastLine = lines.lastObject;
+        
+        // I've seen a weird issue with NSStrings being inserted here. No idea how and why, but… yeah. This is an emergency fix.
+        if ([firstLine isKindOfClass:Line.class])
+            firstLine.beginsTitlePageBlock = true;
+        if ([lastLine isKindOfClass:Line.class])
+            lastLine.endsTitlePageBlock = true;
     }
     
     return self.titlePage;
